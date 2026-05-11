@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>iQR — Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg-elev: #111111;
+    --bg-elev-2: #161616;
+    --line: #1f1f1f;
+    --line-2: #2a2a2a;
+    --ink: #f5f1e8;
+    --ink-dim: #8a857a;
+    --ink-mute: #5a564f;
+    --accent: #d4ff3f;
+    --accent-deep: #a8d020;
+    --serif: 'Instrument Serif', 'Times New Roman', serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --sans: 'Inter Tight', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Scan line */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 99;
+    background: repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(255,255,255,0.012) 3px, rgba(255,255,255,0.012) 4px);
+  }
+
+  /* ============ STUDIO ============ */
+  .studio {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    min-height: 100vh;
+  }
+
+  .panel {
+    background: var(--bg-elev);
+    border-right: 1px solid var(--line);
+    padding: 32px 28px;
+    overflow-y: auto;
+    max-height: 100vh;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand-mark {
+    font-family: var(--serif);
+    font-size: 34px;
+    font-style: italic;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .brand-mark .accent { color: var(--accent); }
+  .brand-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-mute);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  .field { margin-bottom: 20px; }
+  .field label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-dim);
+    margin-bottom: 8px;
+  }
+  .field input, .field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    padding: 11px 13px;
+    font-family: var(--sans);
+    font-size: 14px;
+    border-radius: 0;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .field input:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #0e0e0e;
+  }
+  .field textarea {
+    resize: vertical;
+    min-height: 64px;
+    font-family: var(--sans);
+  }
+
+  .swatch-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .swatch {
+    width: 28px; height: 28px;
+    border: 1px solid var(--line-2);
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .swatch:hover { transform: scale(1.08); }
+  .swatch.active { border-color: var(--ink); transform: scale(1.08); }
+
+  .divider {
+    height: 1px;
+    background: var(--line);
+    margin: 28px 0 24px;
+  }
+
+  .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .btn {
+    border: none;
+    padding: 13px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: #e8ff5a; transform: translateX(2px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line-2);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn .arr { font-size: 14px; opacity: 0.5; }
+
+  /* ============ STAGE ============ */
+  .stage {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    max-height: 100vh;
+  }
+  .stage-head {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-elev);
+  }
+  .crumb {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-dim);
+  }
+  .crumb .sep { color: var(--ink-mute); margin: 0 10px; }
+  .crumb b { color: var(--ink); font-weight: 500; }
+
+  .tabs { display: flex; gap: 0; }
+  .tab {
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--ink-dim);
+    padding: 8px 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: -1px;
+  }
+  .tab:first-child { margin-left: 0; }
+  .tab.active { color: var(--accent); border-color: var(--accent); background: rgba(212,255,63,0.05); z-index: 1; }
+  .tab:hover:not(.active) { color: var(--ink); border-color: var(--ink-mute); }
+
+  .stage-body {
+    padding: 40px;
+    display: grid;
+    place-items: center;
+    overflow: auto;
+    background:
+      radial-gradient(circle at 50% 30%, rgba(212,255,63,0.04) 0%, transparent 50%),
+      var(--bg);
+  }
+
+  /* QR preview card */
+  .preview-frame {
+    width: 100%;
+    max-width: 720px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .preview-frame.split {
+    grid-template-columns: 1fr 1fr;
+  }
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    padding: 28px;
+    position: relative;
+  }
+  .card::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -8px; left: 16px;
+    background: var(--bg);
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-mute);
+  }
+
+  .qr-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .qr-wrap {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .qr-wrap::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border: 1px solid var(--accent);
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  #qr canvas, #qr img { display: block; }
+
+  .qr-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-dim);
+    text-align: center;
+    line-height: 1.8;
+  }
+  .qr-meta .creator { color: var(--ink); }
+
+  /* Landing preview (inside iframe-ish container) */
+  .land-preview {
+    background: var(--bg);
+    overflow: hidden;
+    height: 480px;
+    position: relative;
+  }
+  .land-preview iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+  }
+
+  .url-row {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    word-break: break-all;
+    line-height: 1.6;
+  }
+  .url-row b { color: var(--accent); font-weight: 500; }
+
+  /* ============ LANDING VIEW ============ */
+  .landing {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+  .landing::before {
+    content: '';
+    position: absolute;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, var(--land-accent, var(--accent)) 0%, transparent 60%);
+    opacity: 0.08;
+    pointer-events: none;
+  }
+
+  .land-nav {
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+    z-index: 2;
+  }
+  .land-nav .creator-handle {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .land-nav .iqr-mark {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-mute);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .iqr-mark .dot {
+    width: 6px; height: 6px;
+    background: var(--land-accent, var(--accent));
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .land-main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    position: relative;
+    z-index: 2;
+  }
+  .land-left {
+    padding: 64px 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-right: 1px solid var(--line);
+  }
+  .land-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--land-accent, var(--accent));
+    margin-bottom: 20px;
+  }
+  .land-title {
+    font-family: var(--serif);
+    font-size: clamp(40px, 5vw, 68px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 18px;
+  }
+  .land-title em { font-style: italic; }
+  .land-desc {
+    font-size: 16px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+    margin-bottom: 32px;
+    max-width: 460px;
+  }
+  .land-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--land-accent, var(--accent));
+    color: #0a0a0a;
+    padding: 16px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    text-decoration: none;
+    font-weight: 600;
+    width: fit-content;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .land-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -10px var(--land-accent, var(--accent));
+  }
+  .land-cta .arrow { transition: transform 0.2s; }
+  .land-cta:hover .arrow { transform: translateX(4px); }
+
+  .land-right {
+    padding: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--bg-elev) 0%, var(--bg) 100%);
+  }
+  .product-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--line);
+    padding: 24px;
+    position: relative;
+  }
+  .product-card::before {
+    content: 'PRODUCT';
+    position: absolute;
+    top: -8px; left: 16px;
+    background: var(--bg);
+    padding: 0 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--land-accent, var(--accent));
+  }
+  .product-img {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #000;
+    margin-bottom: 18px;
+    object-fit: cover;
+    display: block;
+  }
+  .product-img-placeholder {
+    width: 100%;
+    aspect-ratio: 1;
+    background:
+      linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.02) 50%, transparent 70%),
+      var(--bg);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 80px;
+    color: var(--land-accent, var(--accent));
+    opacity: 0.7;
+  }
+  .product-name {
+    font-family: var(--serif);
+    font-size: 24px;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .product-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-mute);
+    display: flex;
+    justify-content: space-between;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    margin-top: 14px;
+  }
+
+  .land-foot {
+    padding: 20px 32px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+    position: relative;
+    z-index: 2;
+  }
+  .land-foot a { color: var(--ink-dim); text-decoration: none; }
+  .land-foot a:hover { color: var(--land-accent, var(--accent)); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(120%);
+    background: var(--accent);
+    color: #0a0a0a;
+    padding: 12px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 600;
+    z-index: 1000;
+    transition: transform 0.3s cubic-bezier(.2,.8,.2,1);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Mobile */
+  @media (max-width: 880px) {
+    .studio { grid-template-columns: 1fr; }
+    .panel { max-height: none; border-right: none; border-bottom: 1px solid var(--line); }
+    .stage { max-height: none; }
+    .preview-frame.split { grid-template-columns: 1fr; }
+    .land-main { grid-template-columns: 1fr; }
+    .land-left { border-right: none; border-bottom: 1px solid var(--line); padding: 48px 24px; }
+    .land-right { padding: 32px 24px 64px; }
+    .land-nav, .land-foot { padding-left: 20px; padding-right: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== STUDIO VIEW ====== -->
+<div id="studio-view" class="studio">
+  <aside class="panel">
+    <div class="brand">
+      <div class="brand-mark">i<span class="accent">QR</span><em>.</em></div>
+      <div class="brand-tag">Studio · v0.1</div>
+    </div>
+
+    <div class="section-label">Creator</div>
+    <div class="field">
+      <label>Handle</label>
+      <input id="creator" type="text" placeholder="@yourname" value="@arkady" />
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Product</div>
+    <div class="field">
+      <label>Name</label>
+      <input id="product" type="text" placeholder="Product name" value="Atelier Sneaker — Edition 03" />
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="desc" placeholder="One sentence about it.">Hand-finished in Milan. Limited to 240 pairs worldwide.</textarea>
+    </div>
+    <div class="field">
+      <label>Image URL <span style="color:var(--ink-mute);text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input id="img" type="text" placeholder="https://..." value="" />
+    </div>
+    <div class="field">
+      <label>Destination URL</label>
+      <input id="url" type="text" placeholder="https://..." value="https://example.com/buy" />
+    </div>
+    <div class="field">
+      <label>CTA Text</label>
+      <input id="cta" type="text" placeholder="Shop now" value="Acquire" />
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Brand</div>
+    <div class="field">
+      <label>Accent</label>
+      <div class="swatch-row" id="swatches">
+        <div class="swatch active" data-color="#d4ff3f" style="background:#d4ff3f"></div>
+        <div class="swatch" data-color="#ff5f3f" style="background:#ff5f3f"></div>
+        <div class="swatch" data-color="#3fa8ff" style="background:#3fa8ff"></div>
+        <div class="swatch" data-color="#ff3fb8" style="background:#ff3fb8"></div>
+        <div class="swatch" data-color="#a8a8a8" style="background:#a8a8a8"></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="copy-link">Copy Share Link <span class="arr">↗</span></button>
+      <button class="btn btn-ghost" id="open-landing">Open Landing <span class="arr">→</span></button>
+      <button class="btn btn-ghost" id="download-qr">Download QR <span class="arr">↓</span></button>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="stage-head">
+      <div class="crumb">
+        Studio <span class="sep">/</span> <b>Live Preview</b> <span class="sep">/</span> Demo
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-view="split">Split</button>
+        <button class="tab" data-view="qr">QR Only</button>
+        <button class="tab" data-view="land">Landing</button>
+      </div>
+    </div>
+
+    <div class="stage-body">
+      <div class="preview-frame split" id="preview">
+        <div class="card qr-card" data-label="01 · QR Code">
+          <div class="qr-wrap"><div id="qr"></div></div>
+          <div class="qr-meta">
+            <div class="creator" id="meta-creator">@arkady</div>
+            <div id="meta-product">Atelier Sneaker — Edition 03</div>
+          </div>
+          <div class="url-row" id="link-row"></div>
+        </div>
+
+        <div class="card" data-label="02 · Scan Destination" style="padding: 0;">
+          <div class="land-preview">
+            <iframe id="land-iframe" sandbox="allow-same-origin allow-scripts" title="Landing preview"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ====== LANDING VIEW ====== -->
+<div id="landing-view" class="landing" style="display:none">
+  <nav class="land-nav">
+    <div class="creator-handle" id="land-creator">@creator</div>
+    <div class="iqr-mark"><span class="dot"></span> Verified by iQR</div>
+  </nav>
+
+  <main class="land-main">
+    <div class="land-left">
+      <div class="land-tag">Creator Drop · Authenticated</div>
+      <h1 class="land-title" id="land-title">Product</h1>
+      <p class="land-desc" id="land-desc">Description</p>
+      <a class="land-cta" id="land-cta" href="#" target="_blank" rel="noopener">
+        <span id="land-cta-text">Acquire</span>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+    <div class="land-right">
+      <div class="product-card">
+        <div id="land-img-slot"></div>
+        <div class="product-name" id="land-pname">Product</div>
+        <div class="product-meta">
+          <span id="land-handle">@creator</span>
+          <span>iQR · 001</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="land-foot">
+    <div>iQR · Creator-initiated commerce</div>
+    <a href="?" id="back-studio">← Open in Studio</a>
+  </footer>
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+  // ---------- State ----------
+  const $ = (s) => document.querySelector(s);
+  const fields = {
+    creator: $('#creator'),
+    product: $('#product'),
+    desc: $('#desc'),
+    img: $('#img'),
+    url: $('#url'),
+    cta: $('#cta'),
+  };
+  let accent = '#d4ff3f';
+  let qrApi = null;
+
+  // ---------- URL state ----------
+  function encodeState() {
+    const obj = {
+      c: fields.creator.value,
+      p: fields.product.value,
+      d: fields.desc.value,
+      i: fields.img.value,
+      u: fields.url.value,
+      t: fields.cta.value,
+      a: accent,
+    };
+    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  }
+  function decodeState(s) {
+    try { return JSON.parse(decodeURIComponent(escape(atob(s)))); }
+    catch(e) { return null; }
+  }
+  function shareLink() {
+    const base = location.origin + location.pathname;
+    return base + '?m=land&s=' + encodeState();
+  }
+
+  // ---------- QR rendering ----------
+  function drawQR(text) {
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const cells = qr.getModuleCount();
+    const size = 240;
+    const cell = size / cells;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000';
+    for (let r = 0; r < cells; r++) {
+      for (let col = 0; col < cells; col++) {
+        if (qr.isDark(r, col)) {
+          ctx.fillRect(col * cell, r * cell, cell, cell);
+        }
+      }
+    }
+    // Accent corner
+    ctx.fillStyle = accent;
+    ctx.fillRect(size - 22, size - 22, 14, 14);
+
+    const wrap = $('#qr');
+    wrap.innerHTML = '';
+    wrap.appendChild(c);
+    qrApi = c;
+  }
+
+  // ---------- Studio render ----------
+  function renderStudio() {
+    document.documentElement.style.setProperty('--accent', accent);
+    document.documentElement.style.setProperty('--accent-deep', accent);
+    document.documentElement.style.setProperty('--land-accent', accent);
+
+    const link = shareLink();
+    drawQR(link);
+
+    $('#meta-creator').textContent = fields.creator.value || '@creator';
+    $('#meta-product').textContent = fields.product.value || 'Untitled product';
+    $('#link-row').innerHTML = '<b>SCAN →</b> ' + link;
+
+    // Update iframe preview
+    const iframe = $('#land-iframe');
+    iframe.srcdoc = buildLandingHTML();
+  }
+
+  // ---------- Landing HTML (embedded preview + standalone) ----------
+  function buildLandingHTML() {
+    const data = {
+      c: fields.creator.value,
+      p: fields.product.value,
+      d: fields.desc.value,
+      i: fields.img.value,
+      u: fields.url.value,
+      t: fields.cta.value,
+      a: accent,
+    };
+    return renderLandingDoc(data);
+  }
+
+  function renderLandingDoc(d) {
+    const initial = (d.p || '?').trim().charAt(0).toUpperCase();
+    const safe = (s) => (s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const url = safe(d.u || '#');
+    const ctaText = safe(d.t || 'View');
+    const handle = safe(d.c || '@creator');
+    const pname = safe(d.p || 'Product');
+    const desc = safe(d.d || '');
+    const img = safe(d.i || '');
+    const acc = safe(d.a || '#d4ff3f');
+
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#0a0a0a; --bg-elev:#111; --bg-elev-2:#161616; --line:#1f1f1f; --ink:#f5f1e8; --ink-dim:#8a857a; --ink-mute:#5a564f; --acc:${acc}; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:'Inter Tight',system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:99;opacity:0.04;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:98;background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(255,255,255,.012) 3px,rgba(255,255,255,.012) 4px)}
+.wrap{min-height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.wrap::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,var(--acc) 0%,transparent 60%);opacity:0.08;pointer-events:none}
+nav{padding:24px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);position:relative;z-index:2}
+.handle{font-family:'Instrument Serif',serif;font-style:italic;font-size:22px;line-height:1}
+.iqr{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:var(--ink-mute);display:flex;align-items:center;gap:8px}
+.dot{width:6px;height:6px;background:var(--acc);display:inline-block;animation:p 2s infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+main{flex:1;display:grid;grid-template-columns:1fr 1fr;position:relative;z-index:2}
+.left{padding:64px 48px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--line)}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.22em;color:var(--acc);margin-bottom:20px}
+h1{font-family:'Instrument Serif',serif;font-size:clamp(38px,5vw,64px);line-height:1;letter-spacing:-.02em;margin-bottom:18px;font-weight:400}
+.desc{font-size:16px;color:var(--ink-dim);line-height:1.6;margin-bottom:32px;max-width:460px}
+.cta{display:inline-flex;align-items:center;gap:12px;background:var(--acc);color:#0a0a0a;padding:16px 22px;font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.16em;text-decoration:none;font-weight:600;width:fit-content;transition:transform .2s,box-shadow .2s}
+.cta:hover{transform:translateY(-2px);box-shadow:0 12px 30px -10px var(--acc)}
+.right{padding:48px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--bg-elev) 0%,var(--bg) 100%)}
+.pcard{width:100%;max-width:380px;background:var(--bg-elev-2);border:1px solid var(--line);padding:24px;position:relative}
+.pcard::before{content:'PRODUCT';position:absolute;top:-8px;left:16px;background:var(--bg);padding:0 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:var(--acc)}
+.pimg{width:100%;aspect-ratio:1;background:#000;margin-bottom:18px;object-fit:cover;display:block}
+.pimg-ph{width:100%;aspect-ratio:1;background:linear-gradient(135deg,transparent 30%,rgba(255,255,255,.02) 50%,transparent 70%),var(--bg);margin-bottom:18px;display:flex;align-items:center;justify-content:center;font-family:'Instrument Serif',serif;font-style:italic;font-size:80px;color:var(--acc);opacity:.7}
+.pname{font-family:'Instrument Serif',serif;font-size:24px;line-height:1.1;margin-bottom:8px}
+.pmeta{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-mute);display:flex;justify-content:space-between;padding-top:14px;border-top:1px solid var(--line);margin-top:14px}
+footer{padding:20px 32px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute);position:relative;z-index:2}
+@media(max-width:760px){main{grid-template-columns:1fr}.left{border-right:none;border-bottom:1px solid var(--line);padding:48px 24px}.right{padding:32px 24px 56px}nav,footer{padding-left:20px;padding-right:20px}}
+</style></head><body><div class="wrap">
+<nav><div class="handle">${handle}</div><div class="iqr"><span class="dot"></span> Verified by iQR</div></nav>
+<main>
+<div class="left">
+<div class="tag">Creator Drop · Authenticated</div>
+<h1>${pname}</h1>
+<p class="desc">${desc}</p>
+<a class="cta" href="${url}" target="_blank" rel="noopener">${ctaText} <span>→</span></a>
+</div>
+<div class="right">
+<div class="pcard">
+${img ? `<img class="pimg" src="${img}" alt="">` : `<div class="pimg-ph">${initial}</div>`}
+<div class="pname">${pname}</div>
+<div class="pmeta"><span>${handle}</span><span>iQR · 001</span></div>
+</div>
+</div>
+</main>
+<footer><div>iQR · Creator-initiated commerce</div><div>Tap once. Trust verified.</div></footer>
+</div></body></html>`;
+  }
+
+  // ---------- Landing view (when ?m=land) ----------
+  function showLanding(state) {
+    $('#studio-view').style.display = 'none';
+    $('#landing-view').style.display = 'flex';
+    document.title = (state.p || 'iQR') + ' · ' + (state.c || 'iQR');
+    document.documentElement.style.setProperty('--land-accent', state.a || '#d4ff3f');
+
+    $('#land-creator').textContent = state.c || '@creator';
+    $('#land-handle').textContent = state.c || '@creator';
+    $('#land-title').textContent = state.p || 'Product';
+    $('#land-pname').textContent = state.p || 'Product';
+    $('#land-desc').textContent = state.d || '';
+    $('#land-cta').href = state.u || '#';
+    $('#land-cta-text').textContent = state.t || 'View';
+
+    const slot = $('#land-img-slot');
+    if (state.i) {
+      slot.innerHTML = '<img class="product-img" src="' + state.i.replace(/"/g, '&quot;') + '" alt="">';
+    } else {
+      slot.innerHTML = '<div class="product-img-placeholder">' + ((state.p || '?').trim().charAt(0).toUpperCase()) + '</div>';
+    }
+  }
+
+  // ---------- Events ----------
+  Object.values(fields).forEach((el) => {
+    el.addEventListener('input', renderStudio);
+  });
+
+  document.querySelectorAll('.swatch').forEach((sw) => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+      sw.classList.add('active');
+      accent = sw.dataset.color;
+      renderStudio();
+    });
+  });
+
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      const view = tab.dataset.view;
+      const frame = $('#preview');
+      frame.classList.remove('split');
+      const qrCard = frame.children[0];
+      const landCard = frame.children[1];
+      if (view === 'split') { frame.classList.add('split'); qrCard.style.display=''; landCard.style.display=''; }
+      if (view === 'qr')   { qrCard.style.display=''; landCard.style.display='none'; }
+      if (view === 'land') { qrCard.style.display='none'; landCard.style.display=''; }
+    });
+  });
+
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  $('#copy-link').addEventListener('click', async () => {
+    const link = shareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Link copied');
+    } catch (e) {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast('Link copied');
+    }
+  });
+
+  $('#open-landing').addEventListener('click', () => {
+    window.open(shareLink(), '_blank');
+  });
+
+  $('#download-qr').addEventListener('click', () => {
+    if (!qrApi) return;
+    const a = document.createElement('a');
+    a.download = 'iqr-' + (fields.creator.value || 'demo').replace(/[^a-z0-9]/gi, '') + '.png';
+    a.href = qrApi.toDataURL('image/png');
+    a.click();
+  });
+
+  // ---------- Boot ----------
+  const params = new URLSearchParams(location.search);
+  if (params.get('m') === 'land' && params.get('s')) {
+    const state = decodeState(params.get('s'));
+    if (state) {
+      showLanding(state);
+    } else {
+      renderStudio();
+    }
+  } else {
+    renderStudio();
+  }
+</script>
+</body>
+</html>
